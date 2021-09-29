@@ -372,7 +372,7 @@ X &lt;- dta[-1]</code></pre>
   if(is.null(k)){
     k &lt;- ncol(X)
   } else if(k &lt; 1){
-    k &lt;- sum(aku$eigenvalue[3,] &lt; 0.96) + 1
+    k &lt;- sum(aku$eigenvalue[3,] &lt; k) + 1
   }
     
   pc.score &lt;-  aku$pc.score[,1:k]

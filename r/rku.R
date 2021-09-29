@@ -82,7 +82,7 @@ RKU <- function(y, X, k){
   if(is.null(k)){
     k <- ncol(X)
   } else if(k < 1){
-    k <- sum(aku$eigenvalue[3,] < 0.96) + 1
+    k <- sum(aku$eigenvalue[3,] < k) + 1
   }
     
   pc.score <-  aku$pc.score[,1:k]
