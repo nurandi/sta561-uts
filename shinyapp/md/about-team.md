@@ -10,3 +10,7 @@ Untuk memenuhi salah satu tugas praktikum mata kuliah STA561 Pemrograman Statist
 * Muthia Dishanur Izzati (G1501211051)
 * Zein Rizky Santoso (G1501211059)
 * Nur Andi Setiabudi (G1501211061)
+
+</br>
+
+#### Source Code: [GitHub](https://github.com/nurandi/sta561-uts)

@@ -24,7 +24,7 @@ ui <- tagList(
         tabPanel("PCR Function",
                  mainPanel(includeHTML("md/02-rku.html"), width = "100%")),
         tabPanel("PCR For Multicolinearity",
-                 mainPanel("on progress", width = "100%")),
+                 mainPanel(includeHTML("md/03-rku2.html"), width = "100%")),
         tabPanel("Data Munging",
                  mainPanel(includeHTML("md/04-daman.html"), width = "100%")),
         
@@ -77,6 +77,6 @@ ui <- tagList(
                      )
                 ),
             tabPanel("Shinyapp",
-                    mainPanel(includeHTML("md/09-shiny.html"), width = "100%"))
+                    mainPanel(includeHTML("md/05-shiny.html"), width = "100%"))
     )
 )
