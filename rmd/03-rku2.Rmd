@@ -140,13 +140,16 @@ source("https://raw.githubusercontent.com/nurandi/sta561-uts/main/r/rku.R",
 
 ```{r}
 # regresi komponen utama
-rku <- RKU(y, x, k = 2)
+# untuk ilustrasi, akan dipilih k=2, sehingga dapat dilihat korelasi antar peubah X
+# beserta nilai VIF-nya
+rku <- RKU(y = y, X = x, k = 2)
 ```
 
 ```{r}
-# matriks plot
-GGally::ggpairs(as.data.frame(rku$pc.score), title = "Matriks Korelasi antar Komponen Utama")
+# matriks plot dari skor komponen utama
+GGally::ggpairs(as.data.frame(rku$pca$pc.score), title = "Matriks Korelasi antar Komponen Utama")
 
+# VIF hasil lm
 car::vif(rku$pcr.lm)
 ```
 
@@ -158,7 +161,7 @@ Selanjutnya, fungsi generik `print` berikut menampilkan hasil analisis regresi k
 print(rku, mode = "ext")
 ```
 
-Dari output di atas diketahui bahwa dua komponen utama pertama (PC1 dan PC2), mewakili keragaman sekitar 80,9%. Hasil regresi memiliki *R-Square* = 0.88, menunjukkan bahwa persamaan regresi relatif baik.
+Dari output di atas diketahui bahwa dua komponen utama pertama ($PC_1$ dan $PC_2$), mewakili keragaman sekitar 80,9%. Hasil regresi memiliki *R-Square* = 0.88, menunjukkan bahwa persamaan regresi relatif baik.
 
 Adapun persamaan regresi yang diperoleh adalah:
 
