@@ -1,0 +1,349 @@
+---
+title: "Manajemen Data Frame"
+output: 
+  html_document:
+    df_print: paged
+number_sections: true
+theme: lumen
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message = FALSE)
+```
+
+-----
+
+#### Deskripsi
+
+Manajemen data infeksi dan vaksinasi Covid-19 seluruh negara.
+
+## Input
+
+1. Infected Case
+
+    Sumber: Center for Systems Science and Engineering (CSSE) at Johns Hopkins University (GitHub)
+    
+    URL: https://github.com/CSSEGISandData/COVID-19
+  
+    Terdiri dari tiga data set:
+    
+      * *Confirmed*
+      * *Recovered*
+      * *Death*
+  
+2. Population dan Kode Negara
+
+    Sumber: Center for Systems Science and Engineering (CSSE) at Johns Hopkins University (GitHub)
+    
+    URL: https://github.com/CSSEGISandData/COVID-19
+  
+3. Histori Vaksin
+
+    Sumber: Our World in Data (Github)
+    
+    URL: https://github.com/owid/covid-19-data
+  
+4. Vaccine manufacture
+
+    Sumber: Our World in Data (Github)
+    
+    URL: https://github.com/owid/covid-19-data
+  
+  
+## Output
+
+1. Data historis (total akumulatif harian) kasus infeksi dan vaksinasi
+2. Data terkini dari kasus infeksi dan vaksinasi
+
+## Tools
+
+1. Package
+
+      * `base`
+      * `tidyverse` (`dplyr`, `readr`, `lubridate`)
+  
+2. Function
+
+      * `read_csv`
+      * `select`
+      * `rename`
+      * `arrange`
+      * `group_by`
+      * `mutate`
+      * `summarise`
+      * `left_join`
+      * `pivot_wider`
+      * `pivot_longer`
+  
+---
+
+```{r}
+library(tidyverse)
+library(lubridate)
+```
+## Infected Case
+
+
+**Sumber data:**
+
+* Center for Systems Science and Engineering (CSSE) at Johns Hopkins University (GitHub)
+* URL: https://github.com/CSSEGISandData/COVID-19
+
+**Input:**
+
+* Terdapat tiga data dalam tiga file berbeda (dalam format sama), yaitu
+  * *confirmed*
+  * *recovered*
+  * *death*
+
+* Merupakan total kumulatif harian
+* Tanggal/hari berupa kolom (format *wide*)
+* Sebagian besar hanya sampai level negara, tapi di beberapa negara ditampilkan hingga level provinsi/state, 
+
+**Output:**
+
+* Satu tabel gabungan dari tiga data
+* Tabel diubah menjadi format *longer*, di mana tanggal/hari menjadi satu kolom
+* Agregasi hingga level negara
+* (Karena format ketiga data, dibuat fungsi untuk *pre-processing*)
+
+```{r}
+infected <- function(url){
+  read_csv(url) %>%
+  rename_all(make.names) %>%
+  pivot_longer(cols = starts_with("X"),
+                 names_to = "last_update",
+                 values_to = "total") %>%
+  mutate(last_update = mdy(sub("X","", last_update))) %>%
+  rename(country = Country.Region) %>%
+  group_by(country, last_update) %>%
+  summarise(total = sum(total)) %>%
+  ungroup()
+}
+```
+
+
+```{r}
+url_confirmed <- "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_global.csv"
+url_recovered <- "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_recovered_global.csv"
+url_death <-     "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_deaths_global.csv"
+
+confirmed <- read_csv(url_confirmed)
+confirmed
+
+# join all together
+infected_case <- infected(url_confirmed) %>% 
+  left_join(infected(url_recovered), 
+            by = c("country", "last_update")) %>%
+  left_join(infected(url_death)
+            , by = c("country", "last_update")) %>%
+  rename(total_confirmed = total.x,
+         total_recovered = total.y,
+         total_death     = total) %>%
+  mutate(total_active    = total_confirmed - (total_recovered + total_death)) %>%
+  mutate(across(starts_with("total"), ~replace_na(., 0)))
+
+infected_case
+
+```
+
+
+## Populasi dan kode negara
+
+
+**Sumber data:**
+
+* Center for Systems Science and Engineering (CSSE) at Johns Hopkins University (GitHub)
+* URL: https://github.com/CSSEGISandData/COVID-19
+
+**Input:**
+
+* Kode standar tiap negara dan regional (*ISO code*) beserta total populasinya
+
+**Output:**
+
+* Hanya pilih level negara
+* Hanya pilih kolom tertentu yang relevan
+
+```{r}
+url <- "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/UID_ISO_FIPS_LookUp_Table.csv"
+country <- read_csv(url)
+country
+
+country <- country %>%
+  filter(UID == code3) %>%
+  select (iso_code = iso3,
+          country = Country_Region,
+          latitude = Lat,
+          longitude = Long_,
+          population = Population)
+
+country
+```
+
+## Historis Vaksin
+
+**Sumber data:**
+
+* Our World in Data (Github)
+* URL: https://github.com/owid/covid-19-data
+
+**Input:**
+
+* Total kumulatif harian vaksinasi setiap negara, meliputi 
+  * `total_vaccinations` : total vaksinasi
+  * `people_vaccinated` : total penduduk yang sudah divaksin
+  * `people_fully_vaccinated` : total penduduk yang sudah divaksin lengkap
+  * `total_boosters` : total vaksinasi booster
+* Adanya *missing value*
+
+**Output:**
+
+* Total kumulatif harian vaksinasi setiap negara
+* Imput *missing value* untuk tiap-tiap negara:
+  * Jika tanggal sebelumnya tidak ada *non-missing*, diisi dengan nol
+  * Jika tanggal sebelumnya ada *non-missing*, diisi dengan *non-missing* terdekat sebelumnya.
+
+```{r}
+url <- "https://raw.githubusercontent.com/owid/covid-19-data/master/public/data/vaccinations/vaccinations.csv"
+vaccination <- read_csv(url)
+vaccination
+
+vaccination <- vaccination %>%
+  select(location:total_boosters) %>%
+  mutate(across(total_vaccinations:total_boosters, 
+                ~na_if(., 0))) %>%
+  group_by(location, iso_code) %>%
+  arrange(location, iso_code, date) %>%
+  fill(total_vaccinations:total_boosters, 
+       .direction = "down") %>%
+  ungroup() %>%
+  mutate(across(total_vaccinations:total_boosters, 
+                ~replace_na(., 0))) %>%
+  rename(country = location, last_update = date)
+
+vaccination
+```
+
+## Vaccine manufacture
+
+**Sumber data:**
+
+* Our World in Data (Github)
+* URL: https://github.com/owid/covid-19-data
+
+**Input/Output:**
+
+* Daftar merek vaksin yang digunakan tiap negara
+* Merek vaksin disimpan dalam kolom `vaccines`
+* Apabila suatu negara menggunakan lebih dari satu vaksin, maka daftar vaksin dituliskan seluruhnya di kolom tersebut dengan dipisahkan oleh tanda koma `,`.
+* Tidak ada pemrosesan data
+
+```{r}
+url <- "https://raw.githubusercontent.com/owid/covid-19-data/master/public/data/vaccinations/locations.csv"
+vaccine_manufacture <- read_csv(url)
+vaccine_manufacture
+```
+
+## Data Historis *Infected Case* VS *Vaccination*
+
+**Input:**
+
+* Tiga data frame yang sudah disipakan sebelumnya
+  * `infected_case`
+  * `country`
+  * `vaccination`
+
+**Ouput:**
+
+* Join `infected_case` dengan `country` berdasarkan kolom `country` (kedua data berasal dari sumber yang sama (JHU), sehingga penulisan nama negara juga sama)
+* Join dengan `vaccination` berdasarkan kolom `iso_code` (karena data berasal dari sumber berbeda, sangat direkomendasikan untuk melakukan *join* menggunakan *key/code* yang sudah baku)
+* Hasil akhir berupa total kumulatif harian tiap negara dari *infected case* dan *vaccination*
+
+```{r}
+c19_daily <- infected_case %>%
+  left_join(country, by = "country") %>%
+  select(iso_code, country, population, last_update,
+         starts_with("total")) %>%
+  left_join(vaccination, by = c("iso_code", "last_update")) %>%
+  group_by(iso_code) %>%
+  arrange(iso_code, last_update) %>%
+  fill(total_vaccinations:total_boosters, 
+       .direction = "down") %>%
+  ungroup() %>%
+  mutate(across(total_vaccinations:total_boosters, 
+                ~replace_na(., 0))) %>%
+  rename(country = country.x) %>%
+  select(-country.y)
+
+c19_daily
+``` 
+
+
+```{r}
+c19_daily %>%
+  pivot_longer(c(total_confirmed, total_death, total_vaccinations),
+                 names_to = "grp",
+                 values_to = "total") %>%
+  filter(total > 0) %>%
+  group_by(iso_code, grp) %>%
+  summarise(last_update = min(last_update)) %>%
+  ungroup() %>%
+  pivot_wider(names_from = grp, values_from = last_update) %>%
+  rename(first_confirmed = total_confirmed,
+         first_death = total_death,
+         first_vaccination = total_vaccinations)
+```
+
+## Data Terkini
+
+**Input:**
+
+* Tiga data frame yang sudah disipakan sebelumnya
+  * `infected_case`
+  * `country`
+  * `vaccination`
+  * `vaccine_manufacture`
+
+**Ouput:**
+
+* Tabel yang mencerminkan kondisi terakhir
+* Total kasus (*confirmed, recovered, death, active*), vaksinasi serta tanggal terjadi kasus pertama dan vaksin pertama
+* Ditambahkan informasi total populasi tiap negara dan merek vaksin yang digunakan
+
+
+```{r}
+c19_latest <- c19_daily %>%
+  # get latest data
+  group_by(iso_code, country) %>%
+  mutate(latest_date = max(last_update)) %>%
+  ungroup() %>%
+  filter(latest_date == last_update) %>%
+  # get first_event
+  left_join(
+  c19_daily %>%
+    pivot_longer(c(total_confirmed, total_death, total_vaccinations),
+                   names_to = "grp",
+                   values_to = "total") %>%
+    filter(total > 0) %>%
+    group_by(iso_code, grp) %>%
+    summarise(last_update = min(last_update)) %>%
+    ungroup() %>%
+    pivot_wider(names_from = grp, values_from = last_update) %>%
+    rename(first_confirmed = total_confirmed,
+           first_death = total_death,
+           first_vaccination = total_vaccinations)) %>%
+  # vaccine manufacture
+  left_join(vaccine_manufacture, by = "iso_code") %>%
+  select(iso_code:last_update, 
+         first_confirmed, first_death, 
+         total_confirmed:total_active,
+         first_vaccination,
+         total_vaccinations:total_boosters,
+         vaccines_manufacture = vaccines)
+
+c19_latest
+```
+
+
+

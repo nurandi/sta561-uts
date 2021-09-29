@@ -1,0 +1,488 @@
+---
+title: "Scripts untuk ShinyApps"
+output: 
+  html_document:
+    df_print: paged
+theme: lumen
+---
+
+----
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
+```
+
+Aplikasi sederhana ini dibangun menggunakan `R` dan `shiny`, dengan struktur sebagai berikut:
+
+## Struktur
+
+Stuktur direktor aplikasi *shiny* yang dibangun adalah sebagai berikut. Seluruh file dapat di-*clone* dari [Github](https://github.com/nurandi/sta561-uts).
+
+
+```{bash, eval = FALSE}
+shinyapp
+├── _prep.R
+├── global.R
+├── server.R
+├── ui.R
+├── data
+│   ├── ipm.Rds
+│   ├── mapKab.Rds
+│   └── mapProv.Rds
+├── md
+│   ├── 01-uts.html
+│   ├── 02-rku.html
+│   ├── 03-rku2.html
+│   ├── 04-daman.html
+│   ├── 05-shiny.html
+│   ├── about-team.md
+│   ├── about.md
+│   └── desc.html
+└── www
+    ├── ARIALN.TTF
+    └── custom.css
+```
+
+Terdapat beberapa folder dan file:
+
+1. Folder `data`, berisi dataset yang yang akan digunakan oleh aplikasi, yaitu data IPM dan shape-file dalam format `Rds`.
+2. Folder `md`, berisi file markdown dan HTML untuk mengisi bagian teks pada aplikasi. Sebagian besar adalah hasil `knit` dari `Rmarkdown`.
+3. Folder `www`, folder untuk pengaturan tampilan tambahan
+4. File `_prep.R`, `global.R`, `server.R` dan `ui.R` berikut:
+
+
+## `_prep.R`
+
+*Pre-processing* data input yang akan digunakan oleh `shiny`.
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(sf)
+library(sf)
+library(rmapshaper)
+
+## data preparation
+ipmData <- read.csv("../data/ipm_kab.csv") %>%
+  as_tibble()
+
+ipmLonger <- ipmData %>% pivot_longer(-c(Kode, Kab), 
+                         names_to = c(".value", "Tahun"), 
+                         names_pattern = "([^_]+)_(.*)") %>%
+  mutate(Tahun = as.factor(Tahun),
+         PPP = as.numeric(gsub(" ", "", PPP)),
+         Kode2 = as.integer(paste0(substr(Kode,1,2),'00'))) %>%
+  mutate(Kode2 = if_else(Kode == Kode2, 0L, Kode2),
+         Kode2 = if_else(Kode == 0L, 9L, Kode2)) 
+
+ipm <- ipmLonger %>%
+  # filter(Kode != 0L) %>%
+  rename(Reg = Kab) %>%
+  left_join(
+    ipmLonger %>% 
+      filter(Kode2 == 0 | Kode2 == 9) %>%
+      select(-Kode2) %>%
+      select(Kode2 = Kode, 
+             Reg2 = Kab,
+             IPM2 = IPM,
+             AHH2 = AHH,
+             EYS2 = EYS,
+             MYS2 = MYS,
+             PPP2 = PPP,
+             everything()),
+    by = c("Kode2", "Tahun") ) %>%
+  mutate(Reg  = if_else(Kode  == 0L, "NASIONAL", Reg),
+         Reg2 = if_else(Kode2 == 0L, "NASIONAL", Reg2),
+         IPMd = IPM - IPM2,
+         AHHd = AHH - AHH2,
+         EYSd = EYS - EYS2,
+         MYSd = MYS - MYS2,
+         PPPd = PPP - PPP2,
+         IPMs = as.factor(if_else(IPMd > 0, 1,0)),
+         AHHs = as.factor(if_else(AHHd > 0, 1,0)),
+         EYSs = as.factor(if_else(EYSd > 0, 1,0)),
+         MYSs = as.factor(if_else(MYSd > 0, 1,0)),
+         PPPs = as.factor(if_else(PPPd > 0, 1,0)) ) %>%
+  select(Kode, Kode2, Reg, Reg2, Tahun,
+         everything())
+
+saveRDS(ipm, "data/ipm.Rds")
+
+
+# extract geometry dari shp
+mapProv <- st_read("../data/shp/idn_admbnda_adm1_bps_20200401.shp", 
+                        quiet = TRUE) %>%
+  mutate(Kode = as.integer(paste0(substr(ADM1_PCODE,3,4),'00'))) %>%
+  select(Kode, geometry) %>% 
+  ms_simplify() # simplify geometry
+  
+mapKab <- st_read("../data/shp/idn_admbnda_adm2_bps_20200401.shp", 
+                   quiet = TRUE) %>%
+  mutate(Kode = as.integer(substr(ADM2_PCODE,3,7))) %>%
+  select(Kode, geometry) %>% 
+  ms_simplify() 
+
+saveRDS(mapProv, "data/mapProv.Rds")
+saveRDS(mapKab, "data/mapKab.Rds")
+```
+
+## `global.R`
+
+Pengaturan *global enviroment* aplikasi *shiny*. Mencakup membaca data dari file, membuat fungsi untuk menampilkan grafik, menghitung periode terakhir yang tersedia dalam data, dan menyiapkan daftar provinsi untuk digunakan pada *drop-down* menu.
+
+```{r}
+library(ggplot2)
+library(leaflet)
+library(dplyr)
+library(shiny)
+library(shinythemes)
+library(hrbrthemes)
+library(sf)
+
+
+if (Sys.info()[['sysname']] =='Linux'){
+  dir.create('~/.fonts')
+  file.copy("www/ARIALN.TTF", "~/.fonts")
+  system('fc-cache -f ~/.fonts')
+}
+
+# membaca data set Rds
+ipm <- readRDS("data/ipm.Rds")
+mapProv <- readRDS("data/mapProv.Rds")
+mapKab <- readRDS("data/mapKab.Rds")
+
+# list provisi untuk drop-down select
+provList <- unique(ipm$Reg2)
+provList <- c("NASIONAL", provList[provList != "NASIONAL" & !is.na(provList)])
+
+# tahun terakhir yang tersedia
+latestYear = max(as.character(ipm$Tahun))
+
+# ggplot wrapper untuk generate chart
+generateChart <- function(data, 
+                          chart = "bar",
+                          xvar, yvar, fillvar, 
+                          llegend = NULL,
+                          refline = NULL,
+                          gtitle = NULL,
+                          xtitle = NULL,
+                          ytitle = NULL){
+  
+  xvar <- enquo(xvar)
+  yvar <- enquo(yvar)
+  fillvar <- enquo(fillvar)
+  
+  if (chart == "bar"){
+    p <- data %>% 
+      ggplot(aes(x = reorder(!!xvar, !!yvar), 
+                 y = !!yvar,
+                 fill = !!fillvar)) +
+      geom_bar(stat = "identity") +
+      geom_hline(yintercept = refline, color = "blue", linetype = "dashed") +
+      coord_flip() +
+      scale_fill_ipsum(labels = llegend)
+    
+  } else if (chart == "line"){
+    p <- data %>%
+      ggplot(aes(x = !!xvar, y = !!yvar, group = !!fillvar)) +
+      geom_line(aes(color = !!fillvar), size = 1)+
+      geom_point(aes(color = !!fillvar), size = 3) +
+      scale_color_ipsum(labels = llegend)
+  }
+  
+  p + 
+  ggtitle(gtitle) +
+  xlab(xtitle) + ylab(ytitle) +
+  theme_ipsum() +
+  theme(legend.title = element_blank(), 
+        legend.position="bottom", 
+        legend.box = "horizontal") 
+}
+```
+
+## `server.R`
+
+Aplikasi *shiny* memanfaatkan *reactive programming* untuk membuat visualisasi yang interaktif. File `server.R` berguna untuk menyiapkan output yang akan ditampilkan kepada pengguna, misalnya me*-render* plot atau grafik, tabel dan sebagainya. 
+
+```{r}
+server <- function(input, output) {
+    
+    # Apakah memilih Nasional atau Provinsi?
+    regType  <- reactive({ifelse(input$selectProv == "NASIONAL", "Nasional", "Provinsi")})
+    regType2 <- reactive({ifelse(input$selectProv == "NASIONAL", "Provinsi", "Kabupaten/Kota")})
+    
+    # Data periode terakhir
+    ipmLatest <- reactive({
+        ipm %>% filter(Reg2 == input$selectProv & Tahun == latestYear) })
+
+    ipmReg2 <- reactive({
+        ipmLatest() %>% head(1) })
+    
+    # Data historis
+    ipmHistoris <- reactive({
+        ipm %>% filter(Reg == "NASIONAL" | Reg == input$selectProv) })
+
+    # Bar chart untuk menampilkan IPM periode terakhir
+    # IPM    
+    output$ipmChartLatest <- renderPlot({
+        generateChart(ipmLatest(), xvar = Reg, yvar = IPM, refline = ipmReg2()$IPM2, fillvar = IPMs,
+                 llegend = paste0(c("< IPM ", "> IPM "), regType()),
+                 xtitle = regType2(),
+                 ytitle = "Indeks Pembangunan Manusia (IPM)")
+    })
+    
+    output$ipmChartDiff <- renderPlot({
+        generateChart(ipmLatest(), xvar = Reg, yvar = IPMd, fillvar = IPMs,
+                      llegend = paste0(c("< IPM ", "> IPM "), regType()),
+                      xtitle = regType2(),
+                      ytitle = paste0("Selisih terhadap IPM ", regType()),
+                      gtitle = paste0("Perbandingan dengan IPM ", regType()))
+    })
+    
+    # AHH
+    output$ahhChartLatest <- renderPlot({
+        generateChart(ipmLatest(), xvar = Reg, yvar = AHH, refline = ipmReg2()$AHH2, fillvar = AHHs,
+                 llegend = paste0(c("< AHH ", "> AHH "), regType()),
+                 xtitle = regType2(),
+                 ytitle = "Angka Harapan Hidup (Tahun)")
+    })
+    
+    output$ahhChartDiff <- renderPlot({
+        generateChart(ipmLatest(), xvar = Reg, yvar = AHHd, fillvar = AHHs,
+                      llegend = paste0(c("< IPM ", "> IPM "), regType()),
+                      xtitle = regType2(),
+                      ytitle = paste0("Selisih terhadap AHH ", regType()),
+                      gtitle = paste0("Perbandingan dengan AHH ", regType()))
+    })
+    
+    # HLS
+    output$eysChartLatest <- renderPlot({
+        generateChart(ipmLatest(), xvar = Reg, yvar = EYS, refline = ipmReg2()$EYS2, fillvar = EYSs,
+                 llegend = paste0(c("< HLS ", "> HLS "), regType()),
+                 xtitle = regType2(),
+                 ytitle = "Harapan Lama Sekolah (Tahun)")
+    })
+    
+    output$eysChartDiff <- renderPlot({
+        generateChart(ipmLatest(), xvar = Reg, yvar = EYSd, fillvar = EYSs,
+                      llegend = paste0(c("< IPM ", "> IPM "), regType()),
+                      xtitle = regType2(),
+                      ytitle = paste0("Selisih terhadap HLS ", regType()),
+                      gtitle = paste0("Perbandingan dengan HLS ", regType()))
+    })
+    
+    
+    # RLS
+    output$mysChartLatest <- renderPlot({
+        generateChart(ipmLatest(), xvar = Reg, yvar = MYS, refline = ipmReg2()$MYS2, fillvar = MYSs,
+                 llegend = paste0(c("< RLS ", "> RLS "), regType()),
+                 xtitle = regType2(),
+                 ytitle = "Rata-rata Lama Sekolah (Tahun)")
+    })
+    
+    output$mysChartDiff <- renderPlot({
+        generateChart(ipmLatest(), xvar = Reg, yvar = MYSd, fillvar = MYSs,
+                      llegend = paste0(c("< IPM ", "> IPM "), regType()),
+                      xtitle = regType2(),
+                      ytitle = paste0("Selisih terhadap RLS ", regType()),
+                      gtitle = paste0("Perbandingan dengan RLS ", regType()))
+    })
+    
+    # PPP
+    output$pppChartLatest <- renderPlot({
+        generateChart(ipmLatest(), xvar = Reg, yvar = PPP, refline = ipmReg2()$PPP2, fillvar = PPPs,
+                 llegend = paste0(c("< PPP ", "> PPP "), regType()),
+                 xtitle = regType2(),
+                 ytitle = "Pengeluaran Per Kapita (Juta Rupiah/Tahun)")
+    })
+    
+    output$pppChartDiff <- renderPlot({
+        generateChart(ipmLatest(), xvar = Reg, yvar = PPPd, fillvar = PPPs,
+                      llegend = paste0(c("< IPM ", "> IPM "), regType()),
+                      xtitle = regType2(),
+                      ytitle = paste0("Selisih terhadap PPP ", regType()),
+                      gtitle = paste0("Perbandingan dengan PPP ", regType()))
+    })
+    
+    
+    # Line chart untuk menampilkan IPM historis
+    # IPM    
+    output$ipmChartHistoris <- renderPlot({
+        generateChart(ipmHistoris(), chart = "line",
+                      xvar = Tahun, yvar = IPM, fillvar = Reg,
+                      llegend = unique(ipmHistoris()$Reg),
+                      xtitle = "Tahun",
+                      ytitle = "Indeks Pembangunan Manusia (IPM)",
+                      gtitle = "Trend Indeks Pembangunan Manusia")
+    })
+    
+    # AHH    
+    output$ahhChartHistoris <- renderPlot({
+        generateChart(ipmHistoris(), chart = "line",
+                      xvar = Tahun, yvar = AHH, fillvar = Reg,
+                      llegend = unique(ipmHistoris()$Reg),
+                      xtitle = "Tahun",
+                      ytitle = "Angka Harapan Hidup (Tahun)",
+                      gtitle = "Trend Angka Harapan Hidup")
+    })
+    
+    # RLS/MYS    
+    output$mysChartHistoris <- renderPlot({
+        generateChart(ipmHistoris(), chart = "line",
+                      xvar = Tahun, yvar = MYS, fillvar = Reg,
+                      llegend = unique(ipmHistoris()$Reg),
+                      xtitle = "Tahun",
+                      ytitle = "Rata-rata Lama Sekolah (Tahun)",
+                      gtitle = "Trend Rata-rata Lama Sekolah")
+    })
+    
+    # HLS/EYS   
+    output$eysChartHistoris <- renderPlot({
+        generateChart(ipmHistoris(), chart = "line",
+                      xvar = Tahun, yvar = EYS, fillvar = Reg,
+                      llegend = unique(ipmHistoris()$Reg),
+                      xtitle = "Tahun",
+                      ytitle = "Harapan Lama Sekolah (Tahun)",
+                      gtitle = "Trend Harapan Lama Sekolah")
+    })
+    
+    # PPP  
+    output$pppChartHistoris <- renderPlot({
+        generateChart(ipmHistoris(), chart = "line",
+                      xvar = Tahun, yvar = PPP, fillvar = Reg,
+                      llegend = unique(ipmHistoris()$Reg),
+                      xtitle = "Tahun",
+                      ytitle = "Pendapatan Per Kapita (Jutaan Rupiah/Tahun)",
+                      gtitle = "Trend Pendapatan Per Kapita")
+    })
+    
+    
+    ## Peta
+    
+ 
+    mapData <- reactive({
+        if (input$selectProv == "NASIONAL") {
+            d <- ipm %>% 
+                filter(Reg2 == "NASIONAL" & Tahun == latestYear) %>%
+                inner_join(mapProv) 
+        } 
+        else {
+            d <- ipm %>% 
+                filter(Reg2 == input$selectProv & Tahun == latestYear) %>%
+                inner_join(mapKab) 
+        }
+        return(d)
+    }) %>%
+        bindCache(input$selectProv)
+    
+    # ggplot
+    output$ipmMap <- renderPlot({
+        mapData() %>%
+        ggplot() +  
+        geom_sf(aes(geometry = geometry, fill=IPM)) +
+            scale_fill_gradientn(colors = c('#CC7351','#E08F62','#DED7B1','#9DAB86','#3A6351')) +
+            #scale_fill_gradientn(colors = colorRampPalette(rev(brewer.pal(10, "BrBG")))(6)) +
+            theme_ipsum() +
+            theme(axis.text.x = element_blank(),
+                  axis.text.y = element_blank(),
+                  panel.grid.major = element_blank(), 
+                  panel.grid.minor = element_blank())
+    })
+    
+}
+```
+
+## `ui.R`
+
+Mengatur tampilan/*user interface* aplikasi, termasuk tata letak, tema, dan lain-lain.
+
+```{r}
+ui <- tagList(
+    
+    tags$head(
+        tags$title("Tugas Praktikum Sesi UTS .:. STA561 .:. P1-K5"),
+        tags$link(rel = "stylesheet", type = "text/css", href = "custom.css")
+    ), 
+    
+    # theme selector
+    # shinythemes::themeSelector(),  
+    
+    navbarPage(
+        theme = shinytheme("sandstone"), 
+        title = "P1-K5",
+        
+        # uncomment to use shiny dashboard module
+        # header = tagList(useShinydashboard()), 
+
+        tabPanel("About",
+                 sidebarPanel(includeMarkdown("md/about-team.md")),
+                 mainPanel(includeHTML("md/desc.html"))),
+        
+        tabPanel("Data Generation",
+                 mainPanel(includeHTML("md/01-uts.html"), width = "100%")),
+        tabPanel("PCR Function",
+                 mainPanel(includeHTML("md/02-rku.html"), width = "100%")),
+        tabPanel("Applying PCR",
+                 mainPanel(includeHTML("md/02-rku2.html"), width = "100%")),
+        tabPanel("Data Munging",
+                 mainPanel(includeHTML("md/04-daman.html"), width = "100%")),
+        
+        tabPanel("Data Visualization",
+                 sidebarPanel(
+                     
+                     selectInput(inputId = "selectProv", 
+                                 label = h4("Pilih Provinsi"), 
+                                 choices = provList,
+                                 selected = provList[1]),
+                     
+                     includeMarkdown("md/about.md")
+                 ),
+                 mainPanel(
+                     tabsetPanel(
+                         tabPanel("Peta Wilayah",
+                                  h2("Peta Wilayah"),
+                                  plotOutput("ipmMap", width = "100%", height = 400)),
+                         tabPanel("IPM", 
+                                  h2("Indeks Pembangunan Manusia"),
+                                  plotOutput("ipmChartLatest", width = "100%", height = 500),
+                                  plotOutput("ipmChartDiff", width = "100%", height = 500),
+                                  plotOutput("ipmChartHistoris", width = "100%", height = 500)),
+                         
+                         tabPanel("AHH", 
+                                  h2("Angka Harapan Hidup"),
+                                  plotOutput("ahhChartLatest", width = "100%", height = 500),
+                                  plotOutput("ahhChartDiff", width = "100%", height = 500),
+                                  plotOutput("ahhChartHistoris", width = "100%", height = 500)),
+                         
+                         tabPanel("RLS", 
+                                  h2("Rata-rata Lama Sekolah"),
+                                  plotOutput("mysChartLatest", width = "100%", height = 500),
+                                  plotOutput("mysChartDiff", width = "100%", height = 500),
+                                  plotOutput("mysChartHistoris", width = "100%", height = 500)),
+                         
+                         tabPanel("HLS", 
+                                  h2("Harapan Lama Sekolah"),
+                                  plotOutput("eysChartLatest", width = "100%", height = 500),
+                                  plotOutput("eysChartDiff", width = "100%", height = 500),
+                                  plotOutput("eysChartHistoris", width = "100%", height = 500)),
+                         
+                         tabPanel("Pengeluaran", 
+                                  h2("Pengeluaran per Kapita"),
+                                  plotOutput("pppChartLatest", width = "100%", height = 500),
+                                  plotOutput("pppChartDiff", width = "100%", height = 500),
+                                  plotOutput("pppChartHistoris", width = "100%", height = 500))
+                         )
+                     )
+                ),
+        
+            tabPanel("Shinyapp",
+                    mainPanel(includeHTML("md/05-shiny.html"), width = "100%"))
+    )
+)
+
+```
+
+
+
+

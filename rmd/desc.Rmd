@@ -1,0 +1,17 @@
+
+## Tugas Praktikum STA561 Pemrograman Statistika
+
+---  
+  
+### Daftar Isi
+  
+| Soal No.  | Menu                         | Deskripsi                                               |
+|:---------:|:-----------------------------|:--------------------------------------------------------|
+| 1         | Generating Data              | Membangkitkan bilangan dengan berurut dan bilangan acak |
+| 2         | PCR Function                 | Fungsi untuk melakukan  Regresi   Komponen Utama (RKU)  |
+| 3         | PCR for Multicolinearity     | Mengkaplikasikan RKU untuk menangani multikolinieritas  |
+| 4         | Data Munging                 | Manajemen data frame                                    |
+| 5         | Data Visualization           | Visualisasi data IPM secara interaktif                  |
+|           | ShinyApps                    | Script/Kode R untuk membuat data visualization          |
+
+---

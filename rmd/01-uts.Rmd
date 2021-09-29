@@ -1,0 +1,122 @@
+---
+title: "Membangkitkan Data"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+----
+
+#### Deskripsi
+
+Program R untuk melakukan proses berikut ini!
+
++ Bangkitkanlah data populasi yang terdiri atas 1000 amatan dengan peubah:
+
+   * **No**: 1 sd 500, 9001 sd 9500 (integer)
+   * **ID** : G0001 sd G0500, G9001 sd G9500 (diperoleh berdasarkan kolom No, dengan penambahan huruf "G" didepan No dan jumlah digitnya harus 4)
+   * Kelas : "Paralel 1" jika ID genap, dan "Paralel 2" jika ID ganjil (factor)
+   * UTS : Diperoleh dengan membangkitkan bilangan acak yang menyebar
+$Normal(\mu = 70,\sigma^2 = 25)$
+   * Indeks : Diperoleh dengan membangkitkan bilangan acak yang menyebar exponential($\theta = 1$)
+      
++   Hilangkan data peubah Indeks yang bernilai lebih dari 1 (menjadi *missing value*)
++   Hitunglah rata-rata dari UTS yang Indeks-nya ada
++   Buatlah data sampel berukuran 100 amatan dari Kelas "Paralel 1" yang
+Indeks-nya ada
++   Hitunglah rata-rata dari UTS pada data sampel yang terambil, lalu bandingkan
+dengan populasi
+
+---
+
+## Menggunakan *R base*
+
+```{r}
+# Membangkitkan No, ID, dan Kelas
+No <- c(seq(1,500),seq(9001,9500))
+ID <- paste ("G",sprintf("%04d",No),sep="")
+Kelas <- as.factor(ifelse(No %% 2 == 0, "Paralel 1", "Paralel 2"))
+
+# Membangkitkan UTS dan Indeks yang menyebar dengan sebaran terentu
+n <- length(No)
+set.seed(5555)
+UTS <- round(rnorm (n,mean=70,sd=5),5)
+Indeks <- round(rexp(n,rate=1),5)
+
+# Menggabungkan menjadi 1 data frame
+Populasi <- data.frame(No, ID, Kelas, UTS, Indeks)
+Populasi
+```
+
+```{r}
+# Set Indeks NA jika > 1
+Populasi$Indeks <- ifelse(Populasi$Indeks > 1, NA, Populasi$Indeks)
+
+# Sample 100 pengamatan dari populasi ber-Indeks dan Paralel 1
+p <- Populasi$ID[!is.na(Populasi$Indeks) & Populasi$Kelas == "Paralel 1"]
+
+set.seed(5555)
+p <- sample(p, 100)
+
+Populasi$Sample <- Populasi$ID %in% p
+
+# Dataframe populasi final
+Populasi
+```
+
+```{r}
+# menghitung rata-rata
+data.frame(
+  rata2_uts_populasi = mean(Populasi$UTS), 
+  rata2_uts_ada_indeks = mean(Populasi$UTS[!is.na(Populasi$Indeks)]),
+  rata2_uts_sample = mean(Populasi$UTS[Populasi$Sample])
+)
+```
+
+
+
+
+## Menggunakan *tidyverse*
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+# Membangkitkan kolom No, Kelas, UTS, Indeks
+set.seed(5555)
+Populasi <- tibble(No = c(seq(1,500),seq(9001,9500))) %>%
+  mutate(ID = paste0("G", str_pad(No, 4, pad = "0")),
+         Kelas = as.factor(ifelse(No %% 2 == 0, "Paralel 1", "Paralel 2")),
+         UTS = round(rnorm(nrow(.), mean = 70, sd = 5), 5),
+         Indeks = round(rexp(nrow(.), rate = 1), 5),
+         Indeks = ifelse(Indeks > 1, NA, Indeks))
+```
+
+```{r}
+# Sampling 100 amatan dari Kelas Paralel 1 yang ber-Indeks
+set.seed(5555)
+Populasi %>%
+  left_join(Populasi %>% 
+              filter(!is.na(Indeks) & Kelas == 'Paralel 1') %>%
+              dplyr::select(ID) %>%
+              mutate(Sample = T) %>%
+              sample_n(100)) %>%
+  mutate(Sample = replace_na(Sample, F)) -> Populasi
+         
+Populasi
+```
+
+```{r}
+# Menghitung rata-rata nilai UTS
+Populasi %>%
+  summarise(rata2_uts_populasi = mean(UTS),
+            rata2_uts_ada_indeks = mean(ifelse(!is.na(Indeks), UTS, NA), na.rm = T),
+            rata2_uts_sample = mean(ifelse(Sample, UTS, NA), na.rm = T))
+```
+

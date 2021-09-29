@@ -1,0 +1,183 @@
+---
+title: "Pengaplikasian Fungsi RKU untuk Menangani Multikolinieritas"
+output: 
+  html_document:
+    df_print: paged
+number_sections: true
+theme: lumen
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+---
+
+#### Deskripsi
+
+Bangkitkan peubah $X_1$, $X_2$, $X_3$ sebanyak 1.000 amatan berdasarkan model regresi
+linear berganda berikut ini:
+
+$$
+Y = 10 + 3X_1 + 5X_2 + 7X_3 + \varepsilon
+$$
+
+dengan mengasumsikan bahwa $\varepsilon \sim N(\mu = 0, \sigma^2 = 30)$
+dan antara peubah bebas terjadi **multikolinearitas**! 
+
+Kemudian hitung koefisien penduga parameter regresi komponen utama yang sudah ditransformasi balik menggunakan fungsi `RKU` yang sudah dibuat di nomor 2! (tidak ada batasan fungsi/*package* yang digunakan)
+
+### Membangkitkan Data 
+
+Terdapat beberapa tahapan dalam melakukan pembangkitan data:
+
+1. Mendefinisikan model regresi linier $Y = 10 + 3X_1 + 5X_2 + 7X_3 + \varepsilon$
+
+2. Membuat matriks ragam peragam yang menunjukan korlasi antar peubah $X$, di mana dalam simulasi ini nilai korelasi antar peubah adalah adalah 0.95 (korelasi tinggi sehingga terjadi multikolinearitas)
+
+3. Membangkitkan data sisaan \varepsilon$ sebanyak 1.000 dengan mengasumsikan bahwa $\varepsilon \sim N(\mu = 0, \sigma^2 = 30)$
+
+4. Menentukan nilai tengah peubah bebas sebesar 1
+
+5. Membangkitkan peubah $X$ dan menghitung peubah $y$
+
+
+```{r}
+library(car)
+library(ggplot2)
+library(GGally)
+```
+
+
+```{r}
+# membuat fungsi untuk membangkitkan bilangan acak multivariate normal
+# dengan korelasi tertentu
+rmvn.eigen <- function(n, mu, Sigma) {
+  d <- length(mu)
+  ev <- eigen(Sigma, symmetric = TRUE)
+  lambda <- ev$values
+  V <- ev$vectors
+
+  R <- V %*% diag(sqrt(lambda)) %*% t(V)
+  Z <- matrix(rnorm(n*d), nrow = n, ncol = d)
+  x <- Z %*% R + matrix(mu,n,d, byrow = T)
+  
+  return(x)
+}
+```
+
+```{r}
+# rataan peubah penjelas
+mu <- c(0,0,0)
+
+# matriks ragam-peragam
+Sigma <- matrix(c(1,.95,.95,.95,1,.95,.95,.95,1), nrow = 3, ncol = 3)
+
+# membangkitkan bilangan (X dan sisaan)
+set.seed(5555)
+x <- rmvn.eigen(1000, mu, Sigma)
+eps <- rnorm(1000,0,sqrt(30))
+
+colnames(x) <- paste0("X", seq(length(mu)))
+```
+
+```{r}
+# menentukan beta, dan membangkitkan Y
+
+beta <- c(b0 = 10, b1 = 3, b2 = 5, b3 = 7)
+y <- round(beta[1] + (x %*% beta[-1]) + eps, 4)
+```
+
+
+### Pemeriksaan Korelasi Data yang Dibangkitkan
+
+Selanjutnya memeriksa apakah bilangan yang dibangkitkan memiliki korelasi dan sebaran yang ditentukan.
+
+```{r}
+# matriks korelasi
+cor(x)
+```
+
+```{r}
+# matriks plot
+GGally::ggpairs(as.data.frame(x), title = "Matriks Korelasi antar Peubah X")
+```
+
+```{r}
+# sebaran dari y
+qplot(y, geom="density", main = "Density plot dari y")
+```
+
+Langkah selanjutnya dilakukan pemodelan regresi serta memeriksa apakah ada *multikolinieritas* dengan mengacu pada nilai VIF.
+
+```{r}
+dataRegresi <- data.frame(y, x) 
+
+# analisis regresi
+reg <- lm(y ~., data = dataRegresi)
+reg
+
+# menghitung VIF
+car::vif(reg)
+```
+
+Dari hasil pemeriksaan di atas diketahui bahwa data yang dibangkitkan sesuai dengan yang telah ditentukan. Yaitu mempunyai koefisien (kurang lebih) $b_0 = 10$, $b_1 = 3$, $b_2 = 5$, $b_3 = 7$, serta antar peubah X mempunyai korelasi (ditunjukkan oleh korelasi sekitar 0.95) sehingga terjadi multikolinieritas (semua VIF > 10). Untuk itu perlu penanganan khusus untuk mengatasi masalah ini. Salah satu metode yang dapat digunakan untuk mengatasi multikolinieritas adalah regresi komponen utama.
+
+
+### Regresi Komponen Utama
+
+Dengan menggunakan fungsi `RKU` yang sudah dibuat pada soal sebelumnya, kita dapat melakukan regresi komponen utama.
+
+```{r}
+# load script yang berisi fungsi RKU
+source("https://raw.githubusercontent.com/nurandi/sta561-uts/main/r/rku.R", 
+       local = knitr::knit_global())
+```
+
+
+```{r}
+# regresi komponen utama
+rku <- RKU(y, x, k = 2)
+```
+
+```{r}
+# matriks plot
+GGally::ggpairs(as.data.frame(rku$pc.score), title = "Matriks Korelasi antar Komponen Utama")
+
+car::vif(rku$pcr.lm)
+```
+
+Dari plot korelasi di atas diketahui bahwa antar komponen utama tidak saling berkorelasi (koefisien nol). Demikian juga VIF hasil regresi komponen utama (dengan dua komponen) bernilai satu, sehingga tidak terjadi multikolinieritas. 
+
+Selanjutnya, fungsi generik `print` berikut menampilkan hasil analisis regresi komponen utama secara lebih lengkap.
+
+```{r}
+print(rku, mode = "ext")
+```
+
+Dari output di atas diketahui bahwa dua komponen utama pertama (PC1 dan PC2), mewakili keragaman sekitar 80,9%. Hasil regresi memiliki *R-Square* = 0.88, menunjukkan bahwa persamaan regresi relatif baik.
+
+Adapun persamaan regresi yang diperoleh adalah:
+
+$$
+\hat{y} = 10.16 + 8.55PC_1 + 3.43PC_2
+$$
+Yang dapat ditransformasi balik kedalam *z-score*
+
+$$
+\hat{y} = 10.16 + 3.22Z_{X1} + 3.89Z_{X2} + 7.71Z_{X3}
+$$
+Atau, jika ditransformasi balik ke peubah sebenarnya, diperoleh
+
+$$
+\hat{y} = 10.36 + 3.27X_1 + 3.90X_2 + 7.91X_3
+$$
+
+
+---
+
+
+
+
+
+
