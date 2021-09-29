@@ -207,7 +207,10 @@ rmvn.eigen &lt;- function(n, mu, Sigma) {
   
   return(x)
 }</code></pre>
-<pre class="r"><code># rataan peubah penjelas
+<pre class="r"><code># jumlah pengamatan
+n &lt;- 1000
+
+# rataan peubah penjelas
 mu &lt;- c(0,0,0)
 
 # matriks ragam-peragam
@@ -215,8 +218,8 @@ Sigma &lt;- matrix(c(1,.95,.95,.95,1,.95,.95,.95,1), nrow = 3, ncol = 3)
 
 # membangkitkan bilangan (X dan sisaan)
 set.seed(5555)
-x &lt;- rmvn.eigen(1000, mu, Sigma)
-eps &lt;- rnorm(1000,0,sqrt(30))
+x &lt;- rmvn.eigen(n, mu, Sigma)
+eps &lt;- rnorm(n,0,sqrt(30))
 
 colnames(x) &lt;- paste0(&quot;X&quot;, seq(length(mu)))</code></pre>
 <pre class="r"><code># menentukan beta, dan membangkitkan Y

@@ -67,6 +67,9 @@ rmvn.eigen <- function(n, mu, Sigma) {
 ```
 
 ```{r}
+# jumlah pengamatan
+n <- 1000
+
 # rataan peubah penjelas
 mu <- c(0,0,0)
 
@@ -75,8 +78,8 @@ Sigma <- matrix(c(1,.95,.95,.95,1,.95,.95,.95,1), nrow = 3, ncol = 3)
 
 # membangkitkan bilangan (X dan sisaan)
 set.seed(5555)
-x <- rmvn.eigen(1000, mu, Sigma)
-eps <- rnorm(1000,0,sqrt(30))
+x <- rmvn.eigen(n, mu, Sigma)
+eps <- rnorm(n,0,sqrt(30))
 
 colnames(x) <- paste0("X", seq(length(mu)))
 ```
