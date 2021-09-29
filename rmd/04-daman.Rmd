@@ -279,22 +279,6 @@ c19_daily <- infected_case %>%
 c19_daily
 ``` 
 
-
-```{r}
-c19_daily %>%
-  pivot_longer(c(total_confirmed, total_death, total_vaccinations),
-                 names_to = "grp",
-                 values_to = "total") %>%
-  filter(total > 0) %>%
-  group_by(iso_code, grp) %>%
-  summarise(last_update = min(last_update)) %>%
-  ungroup() %>%
-  pivot_wider(names_from = grp, values_from = last_update) %>%
-  rename(first_confirmed = total_confirmed,
-         first_death = total_death,
-         first_vaccination = total_vaccinations)
-```
-
 ## Data Terkini
 
 **Input:**
