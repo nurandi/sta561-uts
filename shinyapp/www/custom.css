@@ -1,0 +1,17 @@
+.navbar-default {
+    background-color: #3e3f3a !important;
+	border-color: none !important;
+}
+
+.navbar-default .navbar-brand, .navbar-default .navbar-brand>li>a {
+	color: #fff !important;
+}
+
+.list-group-item.active {
+  background-color: #3e3f3a  !important;
+}
+
+.navbar-nav>.active>a {
+	 background-color: #e7e7e7  !important;
+}
+
