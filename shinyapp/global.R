@@ -1,5 +1,4 @@
 library(ggplot2)
-library(leaflet)
 library(dplyr)
 library(shiny)
 library(shinythemes)
