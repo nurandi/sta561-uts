@@ -107,8 +107,11 @@ print.AKU <- function(obj) {
 #### Melakukan analisis komponen utama
 
 ```{r}
-url <- "https://raw.githubusercontent.com/nurandi/snippet/master/data/pca-data.csv"
+url <- "https://raw.githubusercontent.com/nurandi/sta561-uts/main/data/pca-data.csv"
 dta <- read.csv(url)
+
+# menggunakan data file lokal
+# dta <- read.csv("../data/pca-data.csv")
 
 y <- dta[1]
 X <- dta[-1]

@@ -258,8 +258,11 @@ pre code {
 <h2>Contoh penggunaan</h2>
 <div id="melakukan-analisis-komponen-utama" class="section level4">
 <h4>Melakukan analisis komponen utama</h4>
-<pre class="r"><code>url &lt;- &quot;https://raw.githubusercontent.com/nurandi/snippet/master/data/pca-data.csv&quot;
+<pre class="r"><code>url &lt;- &quot;https://raw.githubusercontent.com/nurandi/sta561-uts/main/data/pca-data.csv&quot;
 dta &lt;- read.csv(url)
+
+# menggunakan data file lokal
+# dta &lt;- read.csv(&quot;../data/pca-data.csv&quot;)
 
 y &lt;- dta[1]
 X &lt;- dta[-1]</code></pre>
