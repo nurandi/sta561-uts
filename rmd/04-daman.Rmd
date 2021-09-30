@@ -108,8 +108,8 @@ library(lubridate)
 * (Karena format ketiga data, dibuat fungsi untuk *pre-processing*)
 
 ```{r}
-infected <- function(url){
-  read_csv(url) %>%
+infected <- function(path){
+  read_csv(path) %>%
   rename_all(make.names) %>%
   pivot_longer(cols = starts_with("X"),
                  names_to = "last_update",
@@ -124,18 +124,21 @@ infected <- function(url){
 
 
 ```{r}
-url_confirmed <- "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_global.csv"
-url_recovered <- "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_recovered_global.csv"
-url_death <-     "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_deaths_global.csv"
+path_confirmed <- "../data/time_series_covid19_confirmed_global.csv"
+path_recovered <- "../data/time_series_covid19_recovered_global.csv" 
+path_death <- "../data/time_series_covid19_deaths_global.csv"
 
-confirmed <- read_csv(url_confirmed)
+# data downloaded from
+# https://github.com/CSSEGISandData/COVID-19/tree/master/csse_covid_19_data/csse_covid_19_time_series
+
+confirmed <- read_csv(path_confirmed)
 confirmed
 
 # join all together
-infected_case <- infected(url_confirmed) %>% 
-  left_join(infected(url_recovered), 
+infected_case <- infected(path_confirmed) %>% 
+  left_join(infected(path_recovered), 
             by = c("country", "last_update")) %>%
-  left_join(infected(url_death)
+  left_join(infected(path_death)
             , by = c("country", "last_update")) %>%
   rename(total_confirmed = total.x,
          total_recovered = total.y,
@@ -163,15 +166,22 @@ infected_case
 **Output:**
 
 * Hanya pilih level negara
+* Jika ada provinsi yang mempunyai kode negara, maka dianggap sebagai suatu negara
 * Hanya pilih kolom tertentu yang relevan
 
 ```{r}
-url <- "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/UID_ISO_FIPS_LookUp_Table.csv"
-country <- read_csv(url)
+path <- "../data/UID_ISO_FIPS_LookUp_Table.csv"
+
+# data downloaded from
+# https://github.com/CSSEGISandData/COVID-19/tree/master/csse_covid_19_data
+
+country <- read_csv(path)
 country
 
 country <- country %>%
   filter(UID == code3) %>%
+  # provinsi tapi mempunyai kode negara, dianggap sebagai negara
+  mutate(Country_Region = ifelse(is.na(Province_State), Country_Region, Province_State)) %>%
   select (iso_code = iso3,
           country = Country_Region,
           latitude = Lat,
@@ -205,8 +215,12 @@ country
   * Jika tanggal sebelumnya ada *non-missing*, diisi dengan *non-missing* terdekat sebelumnya.
 
 ```{r}
-url <- "https://raw.githubusercontent.com/owid/covid-19-data/master/public/data/vaccinations/vaccinations.csv"
-vaccination <- read_csv(url)
+path <- "../data/vaccinations.csv"
+
+# data downloaded from
+# https://github.com/owid/covid-19-data/tree/master/public/data/vaccinations
+
+vaccination <- read_csv(path)
 vaccination
 
 vaccination <- vaccination %>%
@@ -240,8 +254,12 @@ vaccination
 * Tidak ada pemrosesan data
 
 ```{r}
-url <- "https://raw.githubusercontent.com/owid/covid-19-data/master/public/data/vaccinations/locations.csv"
-vaccine_manufacture <- read_csv(url)
+path <- "../data/locations.csv"
+
+# data downloaded from
+# https://github.com/owid/covid-19-data/tree/master/public/data/vaccinations
+
+vaccine_manufacture <- read_csv(path)
 vaccine_manufacture
 ```
 
