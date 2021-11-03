@@ -35,7 +35,7 @@ Terdapat beberapa tahapan dalam melakukan pembangkitan data:
 
 2. Membuat matriks ragam peragam yang menunjukan korlasi antar peubah $X$, di mana dalam simulasi ini nilai korelasi antar peubah adalah adalah 0.95 (korelasi tinggi sehingga terjadi multikolinearitas)
 
-3. Membangkitkan data sisaan \varepsilon$ sebanyak 1.000 dengan mengasumsikan bahwa $\varepsilon \sim N(\mu = 0, \sigma^2 = 30)$
+3. Membangkitkan data sisaan atau $\varepsilon$ sebanyak 1.000 dengan mengasumsikan bahwa $\varepsilon \sim N(\mu = 0, \sigma^2 = 30)$
 
 4. Menentukan nilai tengah peubah bebas sebesar 1
 
@@ -133,7 +133,7 @@ Dengan menggunakan fungsi `RKU` yang sudah dibuat pada soal sebelumnya, kita dap
 
 ```{r}
 # load script yang berisi fungsi RKU
-source("https://raw.githubusercontent.com/nurandi/sta561-uts/main/r/rku.R", 
+source("https://raw.githubusercontent.com/nurandi/sta561-uts/main/r/rku.R", # local-file: "../r/rku.R"
        local = knitr::knit_global())
 ```
 

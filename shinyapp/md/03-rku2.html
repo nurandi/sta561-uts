@@ -186,7 +186,7 @@ Y = 10 + 3X_1 + 5X_2 + 7X_3 + \varepsilon
 <ol style="list-style-type: decimal">
 <li><p>Mendefinisikan model regresi linier <span class="math inline">\(Y = 10 + 3X_1 + 5X_2 + 7X_3 + \varepsilon\)</span></p></li>
 <li><p>Membuat matriks ragam peragam yang menunjukan korlasi antar peubah <span class="math inline">\(X\)</span>, di mana dalam simulasi ini nilai korelasi antar peubah adalah adalah 0.95 (korelasi tinggi sehingga terjadi multikolinearitas)</p></li>
-<li><p>Membangkitkan data sisaan $ sebanyak 1.000 dengan mengasumsikan bahwa <span class="math inline">\(\varepsilon \sim N(\mu = 0, \sigma^2 = 30)\)</span></p></li>
+<li><p>Membangkitkan data sisaan atau <span class="math inline">\(\varepsilon\)</span> sebanyak 1.000 dengan mengasumsikan bahwa <span class="math inline">\(\varepsilon \sim N(\mu = 0, \sigma^2 = 30)\)</span></p></li>
 <li><p>Menentukan nilai tengah peubah bebas sebesar 1</p></li>
 <li><p>Membangkitkan peubah <span class="math inline">\(X\)</span> dan menghitung peubah <span class="math inline">\(y\)</span></p></li>
 </ol>
@@ -265,7 +265,7 @@ car::vif(reg)</code></pre>
 <h3>Regresi Komponen Utama</h3>
 <p>Dengan menggunakan fungsi <code>RKU</code> yang sudah dibuat pada soal sebelumnya, kita dapat melakukan regresi komponen utama.</p>
 <pre class="r"><code># load script yang berisi fungsi RKU
-source(&quot;https://raw.githubusercontent.com/nurandi/sta561-uts/main/r/rku.R&quot;, 
+source(&quot;https://raw.githubusercontent.com/nurandi/sta561-uts/main/r/rku.R&quot;, # local-file: &quot;../r/rku.R&quot;
        local = knitr::knit_global())</code></pre>
 <pre class="r"><code># regresi komponen utama
 # untuk ilustrasi, akan dipilih k=2, sehingga dapat dilihat korelasi antar peubah X
